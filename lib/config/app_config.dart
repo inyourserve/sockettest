@@ -2,7 +2,7 @@
 
 class AppConfig {
   static const String apiBaseUrl = 'http://127.0.0.1:8000';
-  static const String wsUrl = 'ws://127.0.0.1:8000/api/v1/seeker/ws/jobs';
+  static const String wsUrl = 'ws://127.0.0.1:8000/ws';
 
   // Hardcoded token (Note: This is not recommended for production use)
   static const String token =

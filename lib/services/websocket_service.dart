@@ -5,18 +5,24 @@ import 'package:web_socket_channel/status.dart' as status;
 import 'package:sockettest/config/app_config.dart';
 
 class WebSocketService {
+  static final WebSocketService _instance = WebSocketService._internal();
+
+  factory WebSocketService() {
+    return _instance;
+  }
+
+  WebSocketService._internal() {
+    _initializeWebSocket();
+  }
+
   WebSocketChannel? _channel;
   StreamController<dynamic> _streamController = StreamController.broadcast();
   Function(String)? onConnectionStatusChange;
 
-  WebSocketService({this.onConnectionStatusChange}) {
-    _initializeWebSocket();
-  }
-
   void _initializeWebSocket() {
     try {
       _channel = WebSocketChannel.connect(
-        Uri.parse(AppConfig.fullWsUrl),
+        Uri.parse('${AppConfig.wsUrl}?token=${AppConfig.token}'),
       );
 
       onConnectionStatusChange?.call('Connecting');
@@ -58,12 +64,7 @@ class WebSocketService {
     }
   }
 
-  void disconnect() {
+  void close() {
     _channel?.sink.close(status.goingAway);
-  }
-
-  void dispose() {
-    _channel?.sink.close();
-    _streamController.close();
   }
 }
