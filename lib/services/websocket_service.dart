@@ -1,23 +1,25 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/status.dart' as status;
 import 'package:sockettest/config/app_config.dart';
 
 class WebSocketService {
   static final WebSocketService _instance = WebSocketService._internal();
+  factory WebSocketService() => _instance;
 
-  factory WebSocketService() {
-    return _instance;
-  }
-
-  WebSocketService._internal() {
-    _initializeWebSocket();
-  }
+  WebSocketService._internal();
 
   WebSocketChannel? _channel;
   StreamController<dynamic> _streamController = StreamController.broadcast();
   Function(String)? onConnectionStatusChange;
+  BuildContext? _context;
+
+  void initialize(BuildContext context) {
+    _context = context;
+    _initializeWebSocket();
+  }
 
   void _initializeWebSocket() {
     try {
@@ -30,6 +32,7 @@ class WebSocketService {
       _channel!.stream.listen(
         (data) {
           _streamController.add(data);
+          _handleIncomingMessage(data);
         },
         onDone: () {
           onConnectionStatusChange?.call('Disconnected');
@@ -45,6 +48,25 @@ class WebSocketService {
     } catch (e) {
       onConnectionStatusChange?.call('Error: ${e.toString()}');
       _reconnect();
+    }
+  }
+
+  void _handleIncomingMessage(dynamic message) {
+    try {
+      final data = jsonDecode(message);
+      print('Received WebSocket message: $data'); // Debug print
+      if (data['type'] == 'bid_status_update' &&
+          data['data']['status'] == 'accepted') {
+        _navigateToTestScreen();
+      }
+    } catch (e) {
+      print('Error processing WebSocket message: $e');
+    }
+  }
+
+  void _navigateToTestScreen() {
+    if (_context != null) {
+      Navigator.of(_context!).pushNamed('/test_screen');
     }
   }
 
@@ -64,7 +86,12 @@ class WebSocketService {
     }
   }
 
-  void close() {
+  void disconnect() {
     _channel?.sink.close(status.goingAway);
+  }
+
+  void dispose() {
+    _channel?.sink.close();
+    _streamController.close();
   }
 }
