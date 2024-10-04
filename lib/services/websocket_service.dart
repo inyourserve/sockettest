@@ -12,85 +12,104 @@ class WebSocketService {
   WebSocketService._internal();
 
   WebSocketChannel? _channel;
-  StreamController<dynamic> _streamController = StreamController.broadcast();
+  final StreamController<Map<String, dynamic>> _streamController =
+      StreamController.broadcast();
   Function(String)? onConnectionStatusChange;
-  BuildContext? _context;
+  bool _hasListener = false;
+  int _connectionCount = 0;
+  String _currentConnectionId = '';
 
-  void initialize(BuildContext context) {
-    _context = context;
+  void initialize() {
     _initializeWebSocket();
   }
 
   void _initializeWebSocket() {
+    if (_channel != null) {
+      print('WebSocket already initialized. Skipping re-initialization.');
+      return;
+    }
+
     try {
-      _channel = WebSocketChannel.connect(
-        Uri.parse('${AppConfig.wsUrl}?token=${AppConfig.token}'),
-      );
+      String wsUrl = '${AppConfig.wsUrl}?token=${AppConfig.token}';
+      _connectionCount++;
+      _currentConnectionId = 'conn_$_connectionCount';
+      print(
+          'Connecting to WebSocket URL: $wsUrl (Connection ID: $_currentConnectionId)');
+
+      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
       onConnectionStatusChange?.call('Connecting');
 
-      _channel!.stream.listen(
-        (data) {
-          _streamController.add(data);
-          _handleIncomingMessage(data);
-        },
-        onDone: () {
-          onConnectionStatusChange?.call('Disconnected');
-          _reconnect();
-        },
-        onError: (error) {
-          onConnectionStatusChange?.call('Error: $error');
-          _reconnect();
-        },
-      );
+      if (!_hasListener) {
+        _channel!.stream.listen(
+          (data) {
+            final decodedData = jsonDecode(data);
+            _streamController.add({
+              'connectionId': _currentConnectionId,
+              'data': decodedData,
+            });
+          },
+          onDone: () {
+            onConnectionStatusChange?.call('Disconnected');
+            print(
+                'WebSocket disconnected (Connection ID: $_currentConnectionId)');
+            _reconnect();
+          },
+          onError: (error) {
+            onConnectionStatusChange?.call('Error: $error');
+            print(
+                'WebSocket connection error: $error (Connection ID: $_currentConnectionId)');
+            _reconnect();
+          },
+        );
+        _hasListener = true;
+      }
 
       onConnectionStatusChange?.call('Connected');
+      print(
+          'WebSocket connected successfully (Connection ID: $_currentConnectionId)');
     } catch (e) {
       onConnectionStatusChange?.call('Error: ${e.toString()}');
+      print(
+          'Error initializing WebSocket: ${e.toString()} (Connection ID: $_currentConnectionId)');
       _reconnect();
     }
   }
 
-  void _handleIncomingMessage(dynamic message) {
-    try {
-      final data = jsonDecode(message);
-      print('Received WebSocket message: $data'); // Debug print
-      if (data['type'] == 'bid_status_update' &&
-          data['data']['status'] == 'accepted') {
-        _navigateToTestScreen();
-      }
-    } catch (e) {
-      print('Error processing WebSocket message: $e');
-    }
-  }
-
-  void _navigateToTestScreen() {
-    if (_context != null) {
-      Navigator.of(_context!).pushNamed('/test_screen');
-    }
-  }
-
   void _reconnect() {
-    Future.delayed(Duration(seconds: 5), () {
+    Future.delayed(const Duration(seconds: 5), () {
+      print(
+          'Attempting to reconnect WebSocket... (Previous Connection ID: $_currentConnectionId)');
       _initializeWebSocket();
     });
   }
 
-  Stream<dynamic> get stream => _streamController.stream;
+  Stream<Map<String, dynamic>> get stream => _streamController.stream;
 
   void send(Map<String, dynamic> message) {
     if (_channel != null) {
       _channel!.sink.add(jsonEncode(message));
+      print(
+          'Sent WebSocket message on connection $_currentConnectionId: $message');
     } else {
-      print('WebSocket is not connected. Unable to send message.');
+      print(
+          'WebSocket is not connected. Unable to send message. (Connection ID: $_currentConnectionId)');
     }
   }
 
   void disconnect() {
-    _channel?.sink.close(status.goingAway);
+    if (_channel != null) {
+      print(
+          'Disconnecting WebSocket... (Connection ID: $_currentConnectionId)');
+      _channel?.sink.close(status.goingAway);
+      _channel = null;
+      _hasListener = false;
+    }
   }
 
   void dispose() {
+    print(
+        'Disposing WebSocketService... (Connection ID: $_currentConnectionId)');
     _channel?.sink.close();
     _streamController.close();
   }

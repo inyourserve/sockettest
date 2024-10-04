@@ -1,21 +1,19 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:sockettest/models/job.dart';
 import 'package:sockettest/services/websocket_service.dart';
 
 class JobListScreen extends StatefulWidget {
-  final WebSocketService webSocketService;
-
-  JobListScreen({required this.webSocketService});
+  const JobListScreen({Key? key}) : super(key: key);
 
   @override
   _JobListScreenState createState() => _JobListScreenState();
 }
 
 class _JobListScreenState extends State<JobListScreen> {
-  List<Job> _liveJobs = [];
+  final List<Job> _liveJobs = [];
   bool _isOnline = false;
   String? _expandedJobId;
+  final WebSocketService _webSocketService = WebSocketService();
 
   @override
   void initState() {
@@ -24,37 +22,60 @@ class _JobListScreenState extends State<JobListScreen> {
   }
 
   void _listenToWebSocket() {
-    widget.webSocketService.stream.listen((message) {
-      try {
-        final data = jsonDecode(message);
-        print('Received WebSocket message: $data'); // Debug print
-        if (data['type'] == 'new_job') {
-          setState(() {
-            final newJob = Job.fromJson(data['data']);
-            print('Parsed new job: $newJob'); // Debug print
-            _liveJobs.add(newJob);
-          });
-        } else if (data['type'] == 'job_details') {
-          _updateJobDetails(data['data']);
-        }
-      } catch (e) {
-        print('Error processing WebSocket message: $e');
+    _webSocketService.stream.listen((message) {
+      final connectionId = message['connectionId'] as String;
+      final data = message['data'] as Map<String, dynamic>;
+      print('Received WebSocket message on connection $connectionId: $data');
+
+      if (data['type'] == 'new_job') {
+        _handleNewJob(data['data'] as Map<String, dynamic>, connectionId);
+      } else if (data['type'] == 'job_details') {
+        _updateJobDetails(data['data'] as Map<String, dynamic>, connectionId);
+      } else if (data['type'] == 'error') {
+        _handleError(data['message'] as String, connectionId);
+      } else if (data['type'] == 'ping') {
+        print('Received ping on connection $connectionId');
       }
     });
   }
 
-  void _updateJobDetails(Map<String, dynamic> jobDetails) {
+  void _handleNewJob(Map<String, dynamic> jobData, String connectionId) {
+    final newJob = Job.fromJson(jobData);
+    setState(() {
+      if (!_liveJobs.any((job) => job.id == newJob.id)) {
+        _liveJobs.add(newJob);
+        print('Added new job: ${newJob.id} (Connection: $connectionId)');
+      } else {
+        print(
+            'Received duplicate job: ${newJob.id} (Connection: $connectionId) - Not adding');
+      }
+    });
+  }
+
+  void _updateJobDetails(Map<String, dynamic> jobDetails, String connectionId) {
     setState(() {
       final index = _liveJobs.indexWhere((job) => job.id == jobDetails['id']);
       if (index != -1) {
         _liveJobs[index] = Job.fromJson(jobDetails);
+        print(
+            'Updated job details for job: ${jobDetails['id']} (Connection: $connectionId)');
+      } else {
+        print(
+            'Job ${jobDetails['id']} not found for updating details (Connection: $connectionId)');
       }
     });
   }
 
+  void _handleError(String errorMessage, String connectionId) {
+    print('Error from server on connection $connectionId: $errorMessage');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error: $errorMessage')),
+    );
+  }
+
   void _applyForJob(String jobId, double bidAmount) {
-    widget.webSocketService.send({
-      'type': 'apply_for_job',
+    _webSocketService.send({
+      'type': 'apply_job',
       'job_id': jobId,
       'bid_amount': bidAmount,
     });
@@ -64,23 +85,23 @@ class _JobListScreenState extends State<JobListScreen> {
     bool isExpanded = job.id == _expandedJobId;
 
     return Card(
-      margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       child: Column(
         children: [
           ListTile(
-            leading: CircleAvatar(child: Icon(Icons.work)),
+            leading: const CircleAvatar(child: Icon(Icons.work)),
             title: Text(job.subCategory),
             subtitle: Text(job.location),
             trailing: Text(
               '₹${job.hourlyRate.toStringAsFixed(2)}',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             onTap: () {
               setState(() {
                 _expandedJobId = isExpanded ? null : job.id;
               });
               if (!isExpanded) {
-                widget.webSocketService.send({
+                _webSocketService.send({
                   'type': 'get_job_details',
                   'job_id': job.id,
                 });
@@ -94,40 +115,43 @@ class _JobListScreenState extends State<JobListScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Description: ${job.description ?? 'N/A'}'),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text('Posted by: ${job.providerName ?? 'N/A'}'),
                   Text(
                       'Provider Rating: ${job.providerRating?.toStringAsFixed(1) ?? 'N/A'} ★'),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
                       'Distance: ${job.distance?.toStringAsFixed(2) ?? 'N/A'} KM'),
-                  SizedBox(height: 16),
-                  Text('Bid your Rate/h'),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 16),
+                  const Text('Bid your Rate/h'),
+                  const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       ElevatedButton(
                         onPressed: () => _applyForJob(job.id, 550),
-                        child: Text('₹550'),
+                        child: const Text('₹550'),
                         style: ElevatedButton.styleFrom(
-                            primary: Colors.white, onPrimary: Colors.black),
+                            foregroundColor: Colors.black,
+                            backgroundColor: Colors.white),
                       ),
                       ElevatedButton(
                         onPressed: () => _applyForJob(job.id, 600),
-                        child: Text('₹600'),
+                        child: const Text('₹600'),
                         style: ElevatedButton.styleFrom(
-                            primary: Colors.white, onPrimary: Colors.black),
+                            foregroundColor: Colors.black,
+                            backgroundColor: Colors.white),
                       ),
                       ElevatedButton(
                         onPressed: () => _applyForJob(job.id, 650),
-                        child: Text('₹650'),
+                        child: const Text('₹650'),
                         style: ElevatedButton.styleFrom(
-                            primary: Colors.white, onPrimary: Colors.black),
+                            foregroundColor: Colors.black,
+                            backgroundColor: Colors.white),
                       ),
                     ],
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
@@ -135,17 +159,18 @@ class _JobListScreenState extends State<JobListScreen> {
                           onPressed: () {
                             // Handle skip
                           },
-                          child: Text('Skip'),
-                          style: ElevatedButton.styleFrom(primary: Colors.grey),
+                          child: const Text('Skip'),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey),
                         ),
                       ),
-                      SizedBox(width: 16),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () => _applyForJob(job.id, job.hourlyRate),
-                          child: Text('Apply'),
-                          style:
-                              ElevatedButton.styleFrom(primary: Colors.green),
+                          child: const Text('Apply'),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green),
                         ),
                       ),
                     ],
@@ -162,22 +187,21 @@ class _JobListScreenState extends State<JobListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Live Jobs'),
+        title: const Text('Live Jobs'),
         actions: [
-          IconButton(icon: Icon(Icons.copy), onPressed: () {}),
-          IconButton(icon: Icon(Icons.notifications), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.copy), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.notifications), onPressed: () {}),
         ],
       ),
       body: Column(
         children: [
-          // Offline toggle
           Container(
-            padding: EdgeInsets.all(8.0),
+            padding: const EdgeInsets.all(8.0),
             child: Row(
               children: [
                 Icon(Icons.offline_bolt,
                     color: _isOnline ? Colors.green : Colors.grey),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(_isOnline ? 'Online' : 'Offline'),
                 Switch(
                   value: _isOnline,
@@ -190,12 +214,9 @@ class _JobListScreenState extends State<JobListScreen> {
               ],
             ),
           ),
-          // Map placeholder
-
-          // Job list
           Expanded(
             child: _liveJobs.isEmpty
-                ? Center(child: Text('No live jobs available'))
+                ? const Center(child: Text('No live jobs available'))
                 : ListView.builder(
                     itemCount: _liveJobs.length,
                     itemBuilder: (context, index) =>
@@ -205,5 +226,11 @@ class _JobListScreenState extends State<JobListScreen> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _webSocketService.disconnect();
+    super.dispose();
   }
 }

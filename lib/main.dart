@@ -6,11 +6,14 @@ import 'package:sockettest/services/websocket_service.dart';
 import 'package:sockettest/screens/faq_category_screen.dart'; // Add this import
 
 void main() {
+  // Initialize WebSocket service globally
+  WebSocketService().initialize();
+
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final WebSocketService _webSocketService = WebSocketService();
+  MyApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -19,20 +22,17 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: Builder(
-        builder: (context) {
-          _webSocketService.initialize(context);
-          return MainScreen();
-        },
-      ),
+      home: const MainScreen(),
       routes: {
-        '/test_screen': (context) => TestScreen(),
+        '/test_screen': (context) => const TestScreen(),
       },
     );
   }
 }
 
 class MainScreen extends StatefulWidget {
+  const MainScreen({Key? key}) : super(key: key);
+
   @override
   _MainScreenState createState() => _MainScreenState();
 }
@@ -48,9 +48,9 @@ class _MainScreenState extends State<MainScreen> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          JobListScreen(webSocketService: WebSocketService()),
-          ProviderScreen(jobId: _jobId, webSocketService: WebSocketService()),
-          FAQCategoriesScreen(), // Add this line
+          const JobListScreen(), // No need to pass WebSocketService
+          // ProviderScreen(jobId: _jobId), // No need to pass WebSocketService
+          const FAQCategoriesScreen(), // Add this line
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -64,7 +64,6 @@ class _MainScreenState extends State<MainScreen> {
             label: 'Provider',
           ),
           BottomNavigationBarItem(
-            // Add this item
             icon: Icon(Icons.help),
             label: 'FAQ',
           ),

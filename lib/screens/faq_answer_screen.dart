@@ -4,15 +4,15 @@ import '../models/faq_question.dart';
 class FAQAnswerScreen extends StatelessWidget {
   final FAQQuestion question;
 
-  FAQAnswerScreen({required this.question});
+  const FAQAnswerScreen({Key? key, required this.question}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('How to Use'),
+        title: const Text('How to Use'),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -23,23 +23,23 @@ class FAQAnswerScreen extends StatelessWidget {
           children: [
             Text(
               question.question,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(question.answer),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text('Helpful?'),
+                const Text('Helpful?'),
                 IconButton(
-                  icon: Icon(Icons.thumb_up),
+                  icon: const Icon(Icons.thumb_up),
                   onPressed: () {
                     // Implement feedback functionality
                   },
                 ),
                 IconButton(
-                  icon: Icon(Icons.thumb_down),
+                  icon: const Icon(Icons.thumb_down),
                   onPressed: () {
                     // Implement feedback functionality
                   },
@@ -52,7 +52,7 @@ class FAQAnswerScreen extends StatelessWidget {
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16.0),
         child: ElevatedButton(
-          child: Text('Contact us'),
+          child: const Text('Contact us'),
           onPressed: () {
             // Implement contact functionality
           },
